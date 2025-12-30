@@ -1,6 +1,6 @@
 class ApiConfig {
   // Backend API base URL
-  static const String baseUrl = 'http://localhost:5000/api';
+  static const String baseUrl = 'https://inangs-bulaloan-backend.onrender.com';
 
   // Auth endpoints
   static const String login = '$baseUrl/auth/login';
@@ -29,11 +29,13 @@ class ApiConfig {
   static const String joinerOrders = '$baseUrl/orders/joiner';
 
   // Helper to get order bill-out endpoint
-  static String billOutOrder(String orderId) => '$baseUrl/orders/$orderId/bill-out';
+  static String billOutOrder(String orderId) =>
+      '$baseUrl/orders/$orderId/bill-out';
 
   // Helper to get table details endpoint
   static String tableDetails(int tableNumber) => '$baseUrl/tables/$tableNumber';
 
   // Helper to get table joiners endpoint
-  static String tableJoiners(int tableNumber) => '$baseUrl/tables/$tableNumber/joiners';
+  static String tableJoiners(int tableNumber) =>
+      '$baseUrl/tables/$tableNumber/joiners';
 }
