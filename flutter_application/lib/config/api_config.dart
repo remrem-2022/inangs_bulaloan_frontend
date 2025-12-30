@@ -1,7 +1,6 @@
 class ApiConfig {
   // Backend API base URL
-  static const String baseUrl =
-      'https://inangs-bulaloan-backend.onrender.com/api';
+  static const String baseUrl = 'http://localhost:5000/api';
 
   // Auth endpoints
   static const String login = '$baseUrl/auth/login';

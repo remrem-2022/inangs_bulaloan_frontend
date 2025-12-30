@@ -88,24 +88,6 @@ class _MenuDialogState extends State<MenuDialog> {
     });
   }
 
-  void _updateQuantity(String productId, int quantity) {
-    setState(() {
-      if (quantity <= 0) {
-        _cart.remove(productId);
-      } else if (_cart.containsKey(productId)) {
-        _cart[productId]!.quantity = quantity;
-      }
-    });
-  }
-
-  void _updatePrice(String productId, double newPrice) {
-    setState(() {
-      if (_cart.containsKey(productId)) {
-        _cart[productId]!.unitPrice = newPrice;
-      }
-    });
-  }
-
   int _getQuantity(String productId) {
     return _cart[productId]?.quantity ?? 0;
   }
@@ -805,7 +787,6 @@ class _CartItemTile extends StatefulWidget {
 
 class _CartItemTileState extends State<_CartItemTile> {
   late TextEditingController _priceController;
-  bool _isEditing = false;
 
   @override
   void initState() {
@@ -818,8 +799,8 @@ class _CartItemTileState extends State<_CartItemTile> {
   @override
   void didUpdateWidget(_CartItemTile oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Only update the controller if not currently editing and price changed externally
-    if (!_isEditing && oldWidget.item.unitPrice != widget.item.unitPrice) {
+    // Only update the controller if price changed externally
+    if (oldWidget.item.unitPrice != widget.item.unitPrice) {
       _priceController.text = widget.item.unitPrice.toStringAsFixed(2);
     }
   }

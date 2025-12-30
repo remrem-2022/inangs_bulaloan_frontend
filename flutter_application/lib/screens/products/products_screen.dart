@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pluto_grid/pluto_grid.dart';
 import '../../config/api_config.dart';
 import '../../models/product_model.dart';
 import '../../models/product_type_model.dart';
@@ -16,11 +17,91 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<ProductModel> _products = [];
   List<ProductTypeModel> _productTypes = [];
   bool _isLoading = false;
+  PlutoGridStateManager? _stateManager;
+
+  late List<PlutoColumn> _columns;
+  List<PlutoRow> _rows = [];
 
   @override
   void initState() {
     super.initState();
+    _initializeColumns();
     _loadData();
+  }
+
+  void _initializeColumns() {
+    _columns = [
+      // Hidden ID column for reference
+      PlutoColumn(
+        title: 'ID',
+        field: 'id',
+        type: PlutoColumnType.text(),
+        width: 0,
+        hide: true,
+        enableEditingMode: false,
+      ),
+      PlutoColumn(
+        title: 'PRODUCT NAME',
+        field: 'name',
+        type: PlutoColumnType.text(),
+        width: 250,
+        enableEditingMode: false,
+      ),
+      PlutoColumn(
+        title: 'PRODUCT TYPE',
+        field: 'type',
+        type: PlutoColumnType.text(),
+        width: 200,
+        enableEditingMode: false,
+      ),
+      PlutoColumn(
+        title: 'PRICE',
+        field: 'price',
+        type: PlutoColumnType.currency(symbol: '₱'),
+        width: 150,
+        enableEditingMode: false,
+        textAlign: PlutoColumnTextAlign.right,
+      ),
+      PlutoColumn(
+        title: 'ACTIONS',
+        field: 'actions',
+        type: PlutoColumnType.text(),
+        width: 250,
+        enableEditingMode: false,
+        renderer: (rendererContext) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                onPressed: () {
+                  final productId = rendererContext.row.cells['id']?.value;
+                  final product = _products.firstWhere(
+                    (p) => p.id == productId,
+                  );
+                  _showEditProductDialog(product);
+                },
+                icon: const Icon(Icons.edit, size: 18),
+                label: const Text('EDIT'),
+                style: TextButton.styleFrom(foregroundColor: Colors.blue[700]),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () {
+                  final productId = rendererContext.row.cells['id']?.value;
+                  final product = _products.firstWhere(
+                    (p) => p.id == productId,
+                  );
+                  _deleteProduct(product);
+                },
+                icon: const Icon(Icons.delete, size: 18),
+                label: const Text('DELETE'),
+                style: TextButton.styleFrom(foregroundColor: Colors.red[700]),
+              ),
+            ],
+          );
+        },
+      ),
+    ];
   }
 
   Future<void> _loadData() async {
@@ -32,73 +113,107 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
       if (productsResponse['success'] == true &&
           productsResponse['products'] != null) {
-        setState(() {
-          _products = (productsResponse['products'] as List)
-              .map((json) => ProductModel.fromJson(json))
-              .toList();
-        });
+        _products =
+            (productsResponse['products'] as List)
+                .map((json) => ProductModel.fromJson(json))
+                .toList();
       }
 
       if (typesResponse['success'] == true &&
           typesResponse['productTypes'] != null) {
-        setState(() {
-          _productTypes = (typesResponse['productTypes'] as List)
-              .map((json) => ProductTypeModel.fromJson(json))
-              .toList();
-        });
+        _productTypes =
+            (typesResponse['productTypes'] as List)
+                .map((json) => ProductTypeModel.fromJson(json))
+                .toList();
       }
+
+      _updateRows();
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
+  void _updateRows() {
+    _rows =
+        _products.map((product) {
+          final typeName =
+              _productTypes
+                  .firstWhere(
+                    (t) => t.id == product.productTypeId,
+                    orElse:
+                        () => ProductTypeModel(
+                          id: '',
+                          typeName: 'Unknown',
+                          storeId: '',
+                        ),
+                  )
+                  .typeName;
+
+          return PlutoRow(
+            cells: {
+              'id': PlutoCell(value: product.id),
+              'name': PlutoCell(value: product.name),
+              'type': PlutoCell(value: typeName),
+              'price': PlutoCell(value: product.defaultPrice),
+              'actions': PlutoCell(value: ''),
+            },
+          );
+        }).toList();
+
+    _stateManager?.removeAllRows();
+    _stateManager?.appendRows(_rows);
+  }
+
   void _showAddProductDialog() {
     showDialog(
       context: context,
-      builder: (context) => _AddEditProductDialog(
-        productTypes: _productTypes,
-        onSave: _loadData,
-      ),
+      builder:
+          (context) => _AddEditProductDialog(
+            productTypes: _productTypes,
+            onSave: _loadData,
+          ),
     );
   }
 
   void _showEditProductDialog(ProductModel product) {
     showDialog(
       context: context,
-      builder: (context) => _AddEditProductDialog(
-        product: product,
-        productTypes: _productTypes,
-        onSave: _loadData,
-      ),
+      builder:
+          (context) => _AddEditProductDialog(
+            product: product,
+            productTypes: _productTypes,
+            onSave: _loadData,
+          ),
     );
   }
 
   Future<void> _deleteProduct(ProductModel product) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Product'),
-        content: Text('Are you sure you want to delete "${product.name}"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Product'),
+            content: Text('Are you sure you want to delete "${product.name}"?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirm != true) return;
 
     try {
-      final response = await ApiService.delete(ApiConfig.productById(product.id));
+      final response = await ApiService.delete(
+        ApiConfig.productById(product.id),
+      );
 
       if (mounted) {
         if (response['success'] == true) {
@@ -108,15 +223,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
           _loadData();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(response['message'] ?? 'Failed to delete product')),
+            SnackBar(
+              content: Text(response['message'] ?? 'Failed to delete product'),
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -124,91 +241,220 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Header with ADD PRODUCT button
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'PRODUCTS',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                children: [
+                  // Professional Header
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green[400]!, Colors.green[700]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.inventory_2,
+                              size: 32,
+                              color: Colors.white,
                             ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _showAddProductDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('ADD PRODUCT'),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-
-                // Products Table
-                Expanded(
-                  child: _products.isEmpty
-                      ? const Center(child: Text('No products found'))
-                      : SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: SingleChildScrollView(
-                            child: DataTable(
-                              columns: const [
-                                DataColumn(label: Text('PRODUCT NAME')),
-                                DataColumn(label: Text('PRODUCT TYPE')),
-                                DataColumn(label: Text('PRICE')),
-                                DataColumn(label: Text('ACTIONS')),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'PRODUCTS',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                Text(
+                                  '${_products.length} products',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                  ),
+                                ),
                               ],
-                              rows: _products.map((product) {
-                                final typeName = _productTypes
-                                        .firstWhere(
-                                          (t) => t.id == product.productTypeId,
-                                          orElse: () => ProductTypeModel(
-                                            id: '',
-                                            typeName: 'Unknown',
-                                            storeId: '',
-                                          ),
-                                        )
-                                        .typeName;
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _showAddProductDialog,
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          label: const Text(
+                            'ADD PRODUCT',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.green[700],
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 16,
+                            ),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
-                                return DataRow(
-                                  cells: [
-                                    DataCell(Text(product.name)),
-                                    DataCell(Text(typeName)),
-                                    DataCell(Text('₱${product.defaultPrice.toStringAsFixed(2)}')),
-                                    DataCell(
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
+                  // PlutoGrid Table
+                  Expanded(
+                    child:
+                        _products.isEmpty
+                            ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.inventory_2_outlined,
+                                    size: 64,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'No products found',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Click "ADD PRODUCT" to create your first product',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            : Container(
+                              padding: const EdgeInsets.all(16),
+                              child: PlutoGrid(
+                                columns: _columns,
+                                rows: _rows,
+                                onLoaded: (PlutoGridOnLoadedEvent event) {
+                                  _stateManager = event.stateManager;
+                                  _stateManager!.setShowColumnFilter(true);
+                                },
+                                configuration: PlutoGridConfiguration(
+                                  style: PlutoGridStyleConfig(
+                                    gridBorderRadius: BorderRadius.circular(12),
+                                    gridBorderColor: Colors.grey[300]!,
+                                    activatedBorderColor: Colors.blue[300]!,
+                                    activatedColor: Colors.blue[50]!,
+                                    gridBackgroundColor: Colors.white,
+                                    rowColor: Colors.white,
+                                    oddRowColor: Colors.grey[50],
+                                    columnTextStyle: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                    ),
+                                    cellTextStyle: const TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.black87,
+                                    ),
+                                    columnHeight: 50,
+                                    rowHeight: 55,
+                                    defaultColumnTitlePadding:
+                                        const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                    defaultCellPadding:
+                                        const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                        ),
+                                    enableColumnBorderVertical: false,
+                                    enableColumnBorderHorizontal: true,
+                                    borderColor: Colors.grey[200]!,
+                                    inactivatedBorderColor: Colors.grey[300]!,
+                                    iconColor: Colors.blue[700]!,
+                                    disabledIconColor: Colors.grey,
+                                    menuBackgroundColor: Colors.white,
+                                    gridPopupBorderRadius:
+                                        BorderRadius.circular(8),
+                                  ),
+                                  columnFilter: PlutoGridColumnFilterConfig(
+                                    filters: const [
+                                      ...FilterHelper.defaultFilters,
+                                    ],
+                                    resolveDefaultColumnFilter: (
+                                      column,
+                                      resolver,
+                                    ) {
+                                      if (column.field == 'actions') {
+                                        return resolver<
+                                              PlutoFilterTypeContains
+                                            >()
+                                            as PlutoFilterType;
+                                      }
+                                      return resolver<PlutoFilterTypeContains>()
+                                          as PlutoFilterType;
+                                    },
+                                  ),
+                                ),
+                                createHeader:
+                                    (stateManager) => Container(
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[50],
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Colors.grey[300]!,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Row(
                                         children: [
-                                          TextButton(
-                                            onPressed: () => _showEditProductDialog(product),
-                                            child: const Text('EDIT'),
+                                          Icon(
+                                            Icons.search,
+                                            color: Colors.grey[600],
                                           ),
                                           const SizedBox(width: 8),
-                                          TextButton(
-                                            onPressed: () => _deleteProduct(product),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.red,
+                                          Text(
+                                            'Search and filter products using the column filters below',
+                                            style: TextStyle(
+                                              color: Colors.grey[700],
+                                              fontSize: 13,
                                             ),
-                                            child: const Text('DELETE'),
                                           ),
                                         ],
                                       ),
                                     ),
-                                  ],
-                                );
-                              }).toList(),
+                              ),
                             ),
-                          ),
-                        ),
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
     );
   }
 }
@@ -240,7 +486,8 @@ class _AddEditProductDialogState extends State<_AddEditProductDialog> {
     super.initState();
     _nameController = TextEditingController(text: widget.product?.name ?? '');
     _priceController = TextEditingController(
-        text: widget.product?.defaultPrice.toString() ?? '');
+      text: widget.product?.defaultPrice.toString() ?? '',
+    );
     _selectedTypeId = widget.product?.productTypeId;
   }
 
@@ -269,17 +516,23 @@ class _AddEditProductDialogState extends State<_AddEditProductDialog> {
         'productTypeId': _selectedTypeId,
       };
 
-      final response = widget.product == null
-          ? await ApiService.post(ApiConfig.products, data)
-          : await ApiService.put(ApiConfig.productById(widget.product!.id), data);
+      final response =
+          widget.product == null
+              ? await ApiService.post(ApiConfig.products, data)
+              : await ApiService.put(
+                ApiConfig.productById(widget.product!.id),
+                data,
+              );
 
       if (mounted) {
         if (response['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(widget.product == null
-                  ? 'Product created successfully'
-                  : 'Product updated successfully'),
+              content: Text(
+                widget.product == null
+                    ? 'Product created successfully'
+                    : 'Product updated successfully',
+              ),
             ),
           );
           Navigator.pop(context);
@@ -292,9 +545,9 @@ class _AddEditProductDialogState extends State<_AddEditProductDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) {
@@ -370,13 +623,16 @@ class _AddEditProductDialogState extends State<_AddEditProductDialog> {
                   labelText: 'Type',
                   border: OutlineInputBorder(),
                 ),
-                hint: const Text('Show the types on the settings > type of product'),
-                items: widget.productTypes.map((type) {
-                  return DropdownMenuItem(
-                    value: type.id,
-                    child: Text(type.typeName),
-                  );
-                }).toList(),
+                hint: const Text(
+                  'Show the types on the settings > type of product',
+                ),
+                items:
+                    widget.productTypes.map((type) {
+                      return DropdownMenuItem(
+                        value: type.id,
+                        child: Text(type.typeName),
+                      );
+                    }).toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedTypeId = value;
@@ -400,13 +656,14 @@ class _AddEditProductDialogState extends State<_AddEditProductDialog> {
         ),
         ElevatedButton(
           onPressed: _isSubmitting ? null : _submit,
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('DONE'),
+          child:
+              _isSubmitting
+                  ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('DONE'),
         ),
       ],
     );

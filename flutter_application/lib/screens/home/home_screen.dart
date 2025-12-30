@@ -104,9 +104,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
+          Builder(
+            builder: (context) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () {
+                Scaffold.of(context).openEndDrawer();
+              },
+              tooltip: 'Menu',
+            ),
+          ),
         ],
       ),
-      drawer: Drawer(
+      endDrawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
