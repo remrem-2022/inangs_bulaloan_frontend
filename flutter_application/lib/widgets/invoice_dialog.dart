@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/api_config.dart';
 import '../models/order_model.dart';
+import '../models/product_model.dart';
 import '../services/api_service.dart';
 
 class InvoiceDialog extends StatefulWidget {
@@ -59,6 +60,19 @@ class _InvoiceDialogState extends State<InvoiceDialog> {
       setState(() {});
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _addItemsToOrder(OrderModel order) async {
+    // Open edit order dialog
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => _EditOrderDialog(order: order),
+    );
+
+    if (result == true) {
+      // Reload orders to show updated totals
+      await _loadTableOrders();
     }
   }
 
@@ -183,6 +197,7 @@ class _InvoiceDialogState extends State<InvoiceDialog> {
                               const SizedBox(height: 8),
                               _InvoiceCard(
                                 order: _mainOrder!,
+                                onAddItems: () => _addItemsToOrder(_mainOrder!),
                                 onBillOut: () => _billOut(_mainOrder!),
                               ),
                               const SizedBox(height: 24),
@@ -201,6 +216,7 @@ class _InvoiceDialogState extends State<InvoiceDialog> {
                                     padding: const EdgeInsets.only(bottom: 16),
                                     child: _InvoiceCard(
                                       order: joiner,
+                                      onAddItems: () => _addItemsToOrder(joiner),
                                       onBillOut: () => _billOut(joiner),
                                     ),
                                   )),
@@ -217,10 +233,12 @@ class _InvoiceDialogState extends State<InvoiceDialog> {
 
 class _InvoiceCard extends StatelessWidget {
   final OrderModel order;
+  final VoidCallback onAddItems;
   final VoidCallback onBillOut;
 
   const _InvoiceCard({
     required this.order,
+    required this.onAddItems,
     required this.onBillOut,
   });
 
@@ -427,9 +445,36 @@ class _InvoiceCard extends StatelessWidget {
           const SizedBox(height: 16),
           _buildDashedLine(),
 
-          // Bill Out button (only for active orders)
+          // Add Items and Bill Out buttons (only for active orders)
           if (order.isActive) ...[
             const SizedBox(height: 24),
+            // EDIT ORDER button
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: onAddItems,
+                icon: const Icon(Icons.edit, size: 24),
+                label: const Text(
+                  'EDIT ORDER',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[600],
+                  foregroundColor: Colors.white,
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // BILL OUT button
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -496,6 +541,435 @@ class _InvoiceCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+// Widget for editing order items
+class _EditOrderDialog extends StatefulWidget {
+  final OrderModel order;
+
+  const _EditOrderDialog({required this.order});
+
+  @override
+  State<_EditOrderDialog> createState() => _EditOrderDialogState();
+}
+
+class _EditOrderDialogState extends State<_EditOrderDialog> {
+  List<ProductModel> _products = [];
+  final Map<String, _CartItem> _cart = {};
+  bool _isLoading = false;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+    _initializeCartFromOrder();
+  }
+
+  void _initializeCartFromOrder() {
+    // Pre-populate cart with existing order items
+    for (var item in widget.order.items) {
+      _cart[item.productId] = _CartItem(
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+      );
+    }
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await ApiService.get(ApiConfig.menuProducts);
+
+      if (response['success'] == true && response['products'] != null) {
+        final products = (response['products'] as List)
+            .map((json) => ProductModel.fromJson(json))
+            .toList();
+
+        setState(() {
+          _products = products;
+        });
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  void _addToCart(ProductModel product) {
+    setState(() {
+      if (_cart.containsKey(product.id)) {
+        _cart[product.id]!.quantity++;
+      } else {
+        _cart[product.id] = _CartItem(
+          productId: product.id,
+          productName: product.name,
+          quantity: 1,
+          unitPrice: product.defaultPrice,
+        );
+      }
+    });
+  }
+
+  void _removeFromCart(String productId) {
+    setState(() {
+      if (_cart.containsKey(productId)) {
+        if (_cart[productId]!.quantity > 1) {
+          _cart[productId]!.quantity--;
+        } else {
+          _cart.remove(productId);
+        }
+      }
+    });
+  }
+
+  int _getQuantity(String productId) {
+    return _cart[productId]?.quantity ?? 0;
+  }
+
+  Future<void> _submitItems() async {
+    if (_cart.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Order must have at least one item')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final response = await ApiService.put(
+        ApiConfig.addItemsToOrder(widget.order.id),
+        {
+          'items': _cart.values.map((item) => item.toJson()).toList(),
+        },
+      );
+
+      if (mounted) {
+        if (response['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Order updated successfully!')),
+          );
+          Navigator.of(context).pop(true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text(response['message'] ?? 'Failed to update order')),
+          );
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  void _editPrice(String productId, String productName, double currentPrice) {
+    final controller = TextEditingController(text: currentPrice.toStringAsFixed(2));
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit Price - $productName'),
+        content: TextField(
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Price',
+            prefixText: '₱',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newPrice = double.tryParse(controller.text);
+              if (newPrice != null && newPrice > 0) {
+                setState(() {
+                  _cart[productId]!.unitPrice = newPrice;
+                });
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.8,
+        height: MediaQuery.of(context).size.height * 0.8,
+        padding: const EdgeInsets.all(24),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'EDIT ORDER',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  // Product list
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: _products.length,
+                      itemBuilder: (context, index) {
+                        final product = _products[index];
+                        final quantity = _getQuantity(product.id);
+                        final cartItem = _cart[product.id];
+                        final displayPrice = cartItem?.unitPrice ?? product.defaultPrice;
+
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                // Product image
+                                Container(
+                                  width: 60,
+                                  height: 60,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: product.imageUrl != null
+                                        ? Image.network(
+                                            product.imageUrl!,
+                                            fit: BoxFit.cover,
+                                            errorBuilder:
+                                                (context, error, stackTrace) =>
+                                                    const Icon(Icons.restaurant,
+                                                        size: 32,
+                                                        color: Colors.grey),
+                                          )
+                                        : const Icon(Icons.restaurant,
+                                            size: 32, color: Colors.grey),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Product details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        product.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      InkWell(
+                                        onTap: quantity > 0
+                                            ? () => _editPrice(
+                                                  product.id,
+                                                  product.name,
+                                                  displayPrice,
+                                                )
+                                            : null,
+                                        child: Row(
+                                          children: [
+                                            Text(
+                                              '₱${displayPrice.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                color: quantity > 0
+                                                    ? Colors.green
+                                                    : Colors.grey,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            if (quantity > 0) ...[
+                                              const SizedBox(width: 4),
+                                              Icon(Icons.edit,
+                                                  size: 14,
+                                                  color: Colors.grey[600]),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Quantity controls
+                                Row(
+                                  children: [
+                                    InkWell(
+                                      onTap: quantity > 0
+                                          ? () => _removeFromCart(product.id)
+                                          : null,
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: quantity > 0
+                                              ? Colors.red[50]
+                                              : Colors.grey[200],
+                                          border: Border.all(
+                                            color: quantity > 0
+                                                ? Colors.red[300]!
+                                                : Colors.grey[400]!,
+                                            width: 2,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.remove,
+                                          size: 24,
+                                          color: quantity > 0
+                                              ? Colors.red[700]
+                                              : Colors.grey[600],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Container(
+                                      width: 50,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[100],
+                                        border: Border.all(
+                                            color: Colors.grey[400]!, width: 2),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '$quantity',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 18,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    InkWell(
+                                      onTap: () => _addToCart(product),
+                                      child: Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: Colors.green[50],
+                                          border: Border.all(
+                                              color: Colors.green[300]!,
+                                              width: 2),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.add,
+                                          size: 24,
+                                          color: Colors.green[700],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Submit button
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ? null : _submitItems,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue[600],
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSubmitting
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'UPDATE ORDER',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+// Cart item class for add items dialog
+class _CartItem {
+  final String productId;
+  final String productName;
+  int quantity;
+  double unitPrice;
+
+  _CartItem({
+    required this.productId,
+    required this.productName,
+    required this.quantity,
+    required this.unitPrice,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'productId': productId,
+      'productName': productName,
+      'quantity': quantity,
+      'unitPrice': unitPrice,
+    };
   }
 }
 

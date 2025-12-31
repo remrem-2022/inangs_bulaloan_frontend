@@ -29,6 +29,10 @@ class ApiConfig {
   static const String takeoutOrders = '$baseUrl/orders/takeout';
   static const String joinerOrders = '$baseUrl/orders/joiner';
 
+  // Helper to get order add-items endpoint
+  static String addItemsToOrder(String orderId) =>
+      '$baseUrl/orders/$orderId/add-items';
+
   // Helper to get order bill-out endpoint
   static String billOutOrder(String orderId) =>
       '$baseUrl/orders/$orderId/bill-out';
