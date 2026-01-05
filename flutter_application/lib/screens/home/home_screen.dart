@@ -39,20 +39,21 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Logout'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
     );
 
     if (confirm == true && mounted) {
@@ -76,10 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(_screenTitles[_selectedIndex]),
             if (user?.storeName != null)
-              Text(
-                user!.storeName!,
-                style: const TextStyle(fontSize: 12),
-              ),
+              Text(user!.storeName!, style: const TextStyle(fontSize: 12)),
           ],
         ),
         actions: [
@@ -90,10 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    user.username,
-                    style: const TextStyle(fontSize: 14),
-                  ),
+                  Text(user.username, style: const TextStyle(fontSize: 14)),
                   Text(
                     user.role.toUpperCase(),
                     style: const TextStyle(
@@ -105,13 +100,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu),
-              onPressed: () {
-                Scaffold.of(context).openEndDrawer();
-              },
-              tooltip: 'Menu',
-            ),
+            builder:
+                (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    Scaffold.of(context).openEndDrawer();
+                  },
+                  tooltip: 'Menu',
+                ),
           ),
         ],
       ),
@@ -128,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   const Text(
-                    "Inang's Bulaloan",
+                    "Inang's Sabawan",
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -162,21 +158,9 @@ class _HomeScreenState extends State<HomeScreen> {
               title: 'Products',
               index: 2,
             ),
-            _buildDrawerItem(
-              icon: Icons.list_alt,
-              title: 'Orders',
-              index: 3,
-            ),
-            _buildDrawerItem(
-              icon: Icons.settings,
-              title: 'Settings',
-              index: 4,
-            ),
-            _buildDrawerItem(
-              icon: Icons.person,
-              title: 'Profile',
-              index: 5,
-            ),
+            _buildDrawerItem(icon: Icons.list_alt, title: 'Orders', index: 3),
+            _buildDrawerItem(icon: Icons.settings, title: 'Settings', index: 4),
+            _buildDrawerItem(icon: Icons.person, title: 'Profile', index: 5),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout),

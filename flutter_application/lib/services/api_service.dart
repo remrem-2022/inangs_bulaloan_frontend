@@ -85,6 +85,27 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> patch(
+    String url,
+    Map<String, dynamic> body, {
+    bool includeAuth = true,
+  }) async {
+    try {
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: _getHeaders(includeAuth: includeAuth),
+        body: jsonEncode(body),
+      );
+
+      return _handleResponse(response);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> delete(
     String url, {
     bool includeAuth = true,

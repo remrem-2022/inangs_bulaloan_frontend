@@ -45,3 +45,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+
+/build/.cxx
+/build/2b49b3d0003fd116ecae550b2827c546
+/build/b908bd3e048116115fd6fc7c9ea42fdd.cache.dill.track.dill
+/build/app
+/build/shared_preferences_android

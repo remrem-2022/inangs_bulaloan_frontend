@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import '../config/api_config.dart';
@@ -85,15 +86,17 @@ class AuthService {
           return false;
         }
 
+        // Parse user data from JSON
+        final userData = jsonDecode(userJson) as Map<String, dynamic>;
+
         ApiService.setToken(token);
-        _currentUser = UserModel.fromJson(Map<String, dynamic>.from(
-          const {},
-        ));
+        _currentUser = UserModel.fromJson(userData);
 
         return true;
       }
     } catch (e) {
-      // Error loading saved auth
+      // Error loading saved auth - clear any corrupted data
+      await logout();
     }
 
     return false;
@@ -115,7 +118,7 @@ class AuthService {
 
   static Future<void> _saveUser(Map<String, dynamic> userData) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_userKey, userData.toString());
+    await prefs.setString(_userKey, jsonEncode(userData));
   }
 
   static bool get isLoggedIn => _currentUser != null;

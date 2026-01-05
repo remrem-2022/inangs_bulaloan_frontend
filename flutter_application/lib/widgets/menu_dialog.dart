@@ -53,8 +53,12 @@ class _MenuDialogState extends State<MenuDialog> {
   }
 
   List<ProductModel> get _filteredProducts {
-    if (_searchQuery.isEmpty) return _products;
-    return _products
+    // First filter out unavailable products
+    final availableProducts = _products.where((p) => p.isAvailable).toList();
+
+    // Then apply search filter if there's a search query
+    if (_searchQuery.isEmpty) return availableProducts;
+    return availableProducts
         .where((p) =>
             p.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             p.productTypeName.toLowerCase().contains(_searchQuery.toLowerCase()))

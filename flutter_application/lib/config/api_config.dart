@@ -19,6 +19,8 @@ class ApiConfig {
   static const String products = '$baseUrl/products';
   static const String menuProducts = '$baseUrl/products/menu';
   static String productById(String id) => '$baseUrl/products/$id';
+  static String toggleProductAvailability(String id) =>
+      '$baseUrl/products/$id/availability';
 
   // Table endpoints
   static const String tables = '$baseUrl/tables';

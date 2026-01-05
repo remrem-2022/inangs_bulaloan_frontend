@@ -63,6 +63,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
         textAlign: PlutoColumnTextAlign.right,
       ),
       PlutoColumn(
+        title: 'AVAILABLE',
+        field: 'available',
+        type: PlutoColumnType.text(),
+        width: 120,
+        enableEditingMode: false,
+        renderer: (rendererContext) {
+          final productId = rendererContext.row.cells['id']?.value;
+          final product = _products.firstWhere((p) => p.id == productId);
+
+          return Center(
+            child: Switch(
+              value: product.isAvailable,
+              onChanged: (value) {
+                _toggleAvailability(product);
+              },
+              activeColor: Colors.green,
+            ),
+          );
+        },
+      ),
+      PlutoColumn(
         title: 'ACTIONS',
         field: 'actions',
         type: PlutoColumnType.text(),
@@ -155,6 +176,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
               'name': PlutoCell(value: product.name),
               'type': PlutoCell(value: typeName),
               'price': PlutoCell(value: product.defaultPrice),
+              'available': PlutoCell(value: product.isAvailable ? 'Yes' : 'No'),
               'actions': PlutoCell(value: ''),
             },
           );
@@ -185,6 +207,42 @@ class _ProductsScreenState extends State<ProductsScreen> {
             onSave: _loadData,
           ),
     );
+  }
+
+  Future<void> _toggleAvailability(ProductModel product) async {
+    try {
+      final response = await ApiService.patch(
+        ApiConfig.toggleProductAvailability(product.id),
+        {},
+      );
+
+      if (mounted) {
+        if (response['success'] == true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Product ${product.isAvailable ? "unavailable" : "available"} now',
+              ),
+            ),
+          );
+          _loadData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                response['message'] ?? 'Failed to update availability',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _deleteProduct(ProductModel product) async {
