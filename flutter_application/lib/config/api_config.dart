@@ -1,7 +1,7 @@
 class ApiConfig {
   // Backend API base URL
   static const String baseUrl =
-      'https://inangs-bulaloan-backend.onrender.com/api';
+      'https://inangs-bulaloan-backend-3zph.onrender.com/api';
 
   // Auth endpoints
   static const String login = '$baseUrl/auth/login';
